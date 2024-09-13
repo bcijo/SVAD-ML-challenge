@@ -9,6 +9,7 @@ import sys
 sys.path.append("/Users/sidhaarthmurali/Desktop/SVAD-ML-challenge")
 from dataset import get_dataloader
 from model import svadVLM
+from safetensors.torch import save_file
 from stage_1.utils import ContrastiveLoss, count_parameters
 
 def main():
@@ -135,6 +136,10 @@ def main():
 
         average_loss = total_loss / len(dataloader)
         print(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {average_loss:.4f}")
+    
+    # IMP : Set the correct output directory here while training
+    output_dir = '/path/to/output/directory/'
+    save_file(model.state_dict(), f'{output_dir}/svadVLM_final.safetensors')
 
 if __name__ == '__main__':
     main()
