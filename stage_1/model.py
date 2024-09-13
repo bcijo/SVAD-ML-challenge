@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from stage_1.utils import VisionEncoder, LanguageModelWithCrossAttention, LearnableQueries
+from stage_1.util import VisionEncoder, LanguageModelWithCrossAttention, LearnableQueries
 
 class svadVLM(nn.Module):
     def __init__(
