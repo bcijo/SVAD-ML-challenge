@@ -121,7 +121,6 @@ def train_epoch(model, dataloader, output_dir, optimizer, contrastive_loss_fn, d
     average_loss = total_loss / len(dataloader)
         # IMP : Set the correct output directory here while training
     try:
-        breakpoint()
         checkpoint_path = os.path.join(output_dir, 'svadVLM_final.safetensors')
         save_file(model.state_dict(), checkpoint_path)
     except Exception as e:
