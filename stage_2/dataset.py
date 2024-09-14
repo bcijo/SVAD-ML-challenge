@@ -10,7 +10,6 @@ from transformers import GPT2Tokenizer
 class FineTuningDataset(Dataset):
     def __init__(self, data, tokenizer_model_id='gpt2', max_seq_length=16):
         self.data = data.reset_index(drop=True)
-        
         # Image transformations
         self.image_transform = transforms.Compose([
             transforms.Resize((224, 224)),
