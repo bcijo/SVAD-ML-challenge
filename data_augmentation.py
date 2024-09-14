@@ -6,6 +6,7 @@ import numpy as np
 import requests
 from PIL import Image, ImageOps
 from io import BytesIO
+from sklearn.utils import resample
 import torchvision
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
@@ -55,7 +56,7 @@ class ImageWithTransformationsDataset(Dataset):
 
         self.augmentation = transforms.Compose([
             transforms.RandomRotation(30),
-            transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+            transforms.RandomResizedCrop(img_size, scale=(0.9, 1.0)),
             transforms.Lambda(self.change_background_color),
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5], [0.5])
