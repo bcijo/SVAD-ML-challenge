@@ -78,13 +78,18 @@ class ContrastiveLoss(nn.Module):
         super(ContrastiveLoss, self).__init__()
         self.temperature = temperature
         self.loss_fct = nn.CrossEntropyLoss()
-        self.device = "cpu"
+        self.device  = torch.device('mps') 
     def forward(self, query_embeddings, key_embeddings):
         batch_size = query_embeddings.size(0)
         query_embeddings = nn.functional.normalize(query_embeddings, p=2, dim=1)
         key_embeddings = nn.functional.normalize(key_embeddings, p=2, dim=1)
         logits = torch.matmul(query_embeddings, key_embeddings.T) / self.temperature
         labels = torch.arange(batch_size).to(self.device)
+        logits = logits.to(self.device)
+        labels = labels.to(self.device)
+
+        print(f"Logits device: {logits.device}")
+        print(f"Labels device: {labels.device}")
         loss = self.loss_fct(logits, labels)
         return loss
     
