@@ -2,7 +2,7 @@ import os
 import argparse
 import torch
 from torch import nn, optim
-from transformers import GPT2Tokenizer
+from transformers import AutoTokenizer
 from tqdm import tqdm
 import sys
 sys.path.append("/Users/sidhaarthmurali/Desktop/SVAD-ML-challenge")
@@ -15,7 +15,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Train the hybrid model with contrastive loss.')
     parser.add_argument('--csv_file', type=str, required=True, help='Path to the CSV file containing the dataset.')
     parser.add_argument('--vision_model_name', type=str, default='google/vit-base-patch16-224', help='Name or path of the vision model.')
-    parser.add_argument('--language_model_name', type=str, default='gpt2', help='Name or path of the language model.')
+    parser.add_argument('--language_model_name', type=str, default='openai-community/gpt2-xl', help='Name or path of the language model.')
     parser.add_argument('--num_learnable_queries', type=int, default=96, help='Number of learnable queries.')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training.')  
     parser.add_argument('--num_epochs', type=int, default=4, help='Number of training epochs.')
@@ -28,7 +28,7 @@ def parse_arguments():
     return args
 
 def initialize_tokenizer(language_model_name):
-    tokenizer = GPT2Tokenizer.from_pretrained(language_model_name)
+    tokenizer = AutoTokenizer.from_pretrained(language_model_name)
     special_tokens = {'pad_token': '[PAD]', 'sep_token': '<sep>'}
     tokenizer.add_special_tokens(special_tokens)
     tokenizer.pad_token = '[PAD]'
@@ -58,7 +58,7 @@ def freeze_parameters(model, cross_attention_positions):
         param.requires_grad = False
 
     # Unfreeze cross-attention layers and their layer norms
-    for idx, block in enumerate(model.language_model.language_model.h):
+    for idx, block in enumerate(model.language_model.language_model.base_model.h):
         if idx in cross_attention_positions:
             if hasattr(block, 'crossattention') and block.crossattention is not None:
                 for param in block.crossattention.parameters():
@@ -74,7 +74,7 @@ def get_trainable_parameters(model, cross_attention_positions):
     # Collect trainable parameters
     trainable_parameters = []
     # Collect cross-attention layers' parameters
-    for idx, block in enumerate(model.language_model.language_model.h):
+    for idx, block in enumerate(model.language_model.language_model.base_model.h):
         if idx in cross_attention_positions:
             if hasattr(block, 'crossattention') and block.crossattention is not None:
                 trainable_parameters.extend([param for param in block.crossattention.parameters() if param.requires_grad])
@@ -86,7 +86,6 @@ def get_trainable_parameters(model, cross_attention_positions):
 def train_epoch(model, dataloader, output_dir, optimizer, contrastive_loss_fn, device):
     model.train()
     total_loss = 0.0
-    # Remove breakpoint()
     loop = tqdm(dataloader, desc="Training", leave=False)
     for batch in loop:
         images = batch['image'].to(device, non_blocking=True)
@@ -127,6 +126,11 @@ def main():
     # Parse arguments
     args = parse_arguments()
     output_dir = args.output_dir
+    # Load model directly
+    # from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    # tokenizer = AutoTokenizer.from_pretrained("ai-forever/mGPT")
+    # model = AutoModelForCausalLM.from_pretrained("ai-forever/mGPT")
 
     # Device selection with MPS backend
     if torch.backends.mps.is_available():
@@ -168,7 +172,6 @@ def main():
         # Save the model checkpoint after each epoch
         if output_dir:
             checkpoint_path = os.path.join(output_dir, f'svadVLM_epoch_{epoch + 1}.safetensors')
-            breakpoint()
             try:
                 save_file(model.state_dict(), checkpoint_path)
             except Exception as e:

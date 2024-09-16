@@ -1,5 +1,3 @@
-# model_stage2.py
-
 import torch
 from torch import nn
 from transformers import ViTModel, GPT2LMHeadModel, GPT2Config
@@ -7,15 +5,24 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 from peft import get_peft_model, LoraConfig, TaskType
 
 class VisionEncoder(nn.Module):
-    def __init__(self, vision_model_name):
+    def __init__(self, model_name='google/vit-base-patch16-224', output_dim=1600):
         super(VisionEncoder, self).__init__()
-        self.vision_encoder = ViTModel.from_pretrained(vision_model_name)
-        self.output_dim = self.vision_encoder.config.hidden_size
+        self.vision_model = ViTModel.from_pretrained(model_name)
+        self.visual_hidden_size = self.vision_model.config.hidden_size
+        output_dim = 1600
+        # Projection layer if output_dim is specified
+        if output_dim and self.visual_hidden_size != output_dim:
+            self.visual_projection = nn.Linear(self.visual_hidden_size, 1600)
+            self.output_dim = 1600
+        else:
+            self.visual_projection = nn.Identity()
+            self.output_dim = self.visual_hidden_size
 
     def forward(self, images):
-        outputs = self.vision_encoder(pixel_values=images)
-        last_hidden_state = outputs.last_hidden_state
-        return last_hidden_state
+        outputs = self.vision_model(pixel_values=images)
+        visual_features = outputs.last_hidden_state  # (batch_size, num_patches + 1, visual_hidden_size)
+        visual_features = self.visual_projection(visual_features)  # (batch_size, num_patches + 1, output_dim)
+        return visual_features  # (batch_size, num_patches + 1, output_dim)
 
 class LearnableQueries(nn.Module):
     def __init__(self, num_queries, hidden_size):
@@ -26,7 +33,7 @@ class LearnableQueries(nn.Module):
         return self.queries.expand(batch_size, -1, -1)
 
 class LanguageModelWithLoRA(nn.Module):
-    def __init__(self, model_name='gpt2', lora_config=None, cross_attention_positions=None):
+    def __init__(self, model_name='openai-community/gpt2-xl', lora_config=None, cross_attention_positions=None):
         super(LanguageModelWithLoRA, self).__init__()
         config = GPT2Config.from_pretrained(model_name)
         config.add_cross_attention = True
@@ -135,4 +142,41 @@ def count_parameters(model):
 
     print(f"Trainable parameters: {trainable_params}")
     print(f"Frozen parameters: {frozen_params}")
+
+class NextTokenLoss(nn.Module):
+    def __init__(self, vocab_size: int, loss_gen_type: str = "mixed", loss_gen_factor: float = 1.0):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.loss_gen_factor = loss_gen_factor
+        self.loss_gen_type = loss_gen_type
+        
+        if loss_gen_type == "token":
+            # Token-level loss, sums the cross-entropy loss across the batch
+            self.cross_entropy = nn.CrossEntropyLoss(reduction="sum")
+        elif loss_gen_type == "mixed":
+            # Mixed loss, averages the cross-entropy loss across the batch
+            self.cross_entropy = nn.CrossEntropyLoss(reduction="mean")
+        else:
+            raise ValueError(f"Invalid loss_gen_type: {loss_gen_type}")
+
+    def forward(self, logits, labels):
+        # Shift logits and labels to compute next-token prediction
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+        
+        # Reshape logits and labels for cross-entropy loss
+        shift_logits = shift_logits.view(-1, self.vocab_size)
+        shift_labels = shift_labels.view(-1)
+        shift_labels = shift_labels.to(shift_logits.device)
+
+        # Calculate loss based on the specified type (token or mixed)
+        if self.loss_gen_type == "token":
+            loss = self.cross_entropy(shift_logits, shift_labels) / labels.size(0)
+        elif self.loss_gen_type == "mixed":
+            loss = self.cross_entropy(shift_logits, shift_labels)
+
+        return loss * self.loss_gen_factor
+
+
+
     
