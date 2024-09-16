@@ -1,19 +1,20 @@
 from torch import nn
-from transformers import ViTModel, GPT2Model
+from transformers import ViTModel, GPT2Model, GPT2Tokenizer, GPT2Model
 import torch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
-from transformers import GPT2Model, GPT2Config
+from transformers import AutoConfig, AutoModelForCausalLM
+
 
 class VisionEncoder(nn.Module):
-    def __init__(self, model_name='google/vit-base-patch16-224', output_dim=None):
+    def __init__(self, model_name='google/vit-base-patch16-224', output_dim=1600):
         super(VisionEncoder, self).__init__()
         self.vision_model = ViTModel.from_pretrained(model_name)
         self.visual_hidden_size = self.vision_model.config.hidden_size
-
+        output_dim = 1600
         # Projection layer if output_dim is specified
         if output_dim and self.visual_hidden_size != output_dim:
-            self.visual_projection = nn.Linear(self.visual_hidden_size, output_dim)
-            self.output_dim = output_dim
+            self.visual_projection = nn.Linear(self.visual_hidden_size, 1600)
+            self.output_dim = 1600
         else:
             self.visual_projection = nn.Identity()
             self.output_dim = self.visual_hidden_size
@@ -21,19 +22,19 @@ class VisionEncoder(nn.Module):
     def forward(self, images):
         outputs = self.vision_model(pixel_values=images)
         visual_features = outputs.last_hidden_state  # (batch_size, num_patches + 1, visual_hidden_size)
-        visual_features = self.visual_projection(visual_features)
+        visual_features = self.visual_projection(visual_features)  # (batch_size, num_patches + 1, output_dim)
         return visual_features  # (batch_size, num_patches + 1, output_dim)
+
     
 
 class LanguageModelWithCrossAttention(nn.Module):
-    def __init__(self, model_name='gpt2', cross_attention_positions=None):
+    def __init__(self, model_name, cross_attention_positions=None):
         super(LanguageModelWithCrossAttention, self).__init__()
         # Load the GPT-2 configuration and set add_cross_attention=True
-        config = GPT2Config.from_pretrained(model_name)
+        config = AutoConfig.from_pretrained(model_name)
         config.add_cross_attention = True  # Enable cross-attention globally
         self.language_model = GPT2Model.from_pretrained(model_name, config=config)
         self.hidden_size = self.language_model.config.hidden_size
-
         # Add cross-attention layers
         self._add_cross_attention_layers(cross_attention_positions)
 
