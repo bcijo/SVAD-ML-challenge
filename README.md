@@ -13,7 +13,7 @@ The dataset consists of the following columns:
     To download images use `download_images` function from `src/utils.py`. See sample code in `src/test.ipynb`.
 3. **group_id**: Category code of the product
 4. **entity_name:** Product entity name. For eg: “item_weight” 
-5. **entity_value:** Product entity value. For eg: “34 gram” 
+5. **entity_value:** Product entity value. For eg: “34 gram”. 
     Note: For test.csv, you will not see the column `entity_value` as it is the target variable.
 
 ### Output Format:
